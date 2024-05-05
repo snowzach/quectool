@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/snowzach/golib/log"
-	"golang.org/x/sys/unix"
 )
 
 type ATStatus int
@@ -48,7 +47,7 @@ type ATServer interface {
 
 type atServer struct {
 	logger   *slog.Logger
-	fd       int
+	port     io.ReadWriteCloser
 	response chan []byte
 	timeout  time.Duration
 	mu       sync.Mutex
@@ -60,25 +59,14 @@ func NewATServer(portName string, timeout time.Duration) (ATServer, error) {
 
 func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 
-	// Open and close to clear the port
-	fd, err := syscall.Open(portName, syscall.O_RDWR|syscall.O_LARGEFILE|syscall.O_CLOEXEC, 0666)
+	port, err := NewPort(portName)
 	if err != nil {
-		return nil, fmt.Errorf("unable to open to clear port %s: %v", portName, err)
-	}
-
-	if err := syscall.Close(fd); err != nil {
-		return nil, fmt.Errorf("unable to close after clear: %v", err)
-	}
-
-	// Open the port
-	fd, err = syscall.Open(portName, syscall.O_RDWR|syscall.O_LARGEFILE|syscall.O_CLOEXEC, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("unable to open port %s: %v", "", err)
+		return nil, err
 	}
 
 	ats := &atServer{
 		logger:   log.Logger.With("context", "atserver", "port", portName),
-		fd:       fd,
+		port:     port,
 		response: make(chan []byte),
 		timeout:  timeout,
 	}
@@ -88,7 +76,7 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 		var pos int
 
 		for {
-			n, err := unix.Read(fd, buffer[pos:])
+			n, err := ats.port.Read(buffer[pos:])
 			if err != nil {
 				log.Error("unable to read response", "error", err)
 				continue
@@ -124,7 +112,7 @@ func (ats *atServer) SendCMD(ctx context.Context, cmd string) (*ATResponse, erro
 	log.Debug("Sent port data", "data", string(cmd))
 
 	// Write command
-	if n, err := syscall.Write(ats.fd, []byte(cmd+"\r\n")); err != nil {
+	if n, err := ats.port.Write([]byte(cmd + "\r\n")); err != nil {
 		return nil, fmt.Errorf("unable to send command %d: %v", n, err)
 	}
 
@@ -170,5 +158,5 @@ func (ats *atServer) SendCMD(ctx context.Context, cmd string) (*ATResponse, erro
 }
 
 func (ats *atServer) Close() error {
-	return syscall.Close(ats.fd)
+	return ats.port.Close()
 }

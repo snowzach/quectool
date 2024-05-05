@@ -33,6 +33,9 @@ func defaults() map[string]interface{} {
 		"server.cors.allowed_headers":   []string{"*"},
 		"server.cors.allow_credentials": false,
 		"server.cors.max_age":           300,
+		// Embedded Server or local filesystem for html
+		"server.embedded": true,
+		"server.html_dir": "embed/public_html",
 
 		"modem.port":    "/dev/smd11",
 		"modem.timeout": "5s",

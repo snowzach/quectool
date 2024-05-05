@@ -2,8 +2,9 @@ package cmd
 
 import (
 	"fmt"
+	"io/fs"
 	"net/http"
-	"strings"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -53,25 +54,14 @@ var (
 				log.Fatalf("Could not setup mainrpc: %v", err)
 			}
 
-			// Serve embedded public html
-			htmlFilesFS := embed.PublicHTMLFS()
-			htmlFilesServer := http.FileServer(http.FS(htmlFilesFS))
-			// Serve swagger docs
-			router.Mount("/api-docs", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Vary", "Accept-Encoding")
-				w.Header().Set("Cache-Control", "no-cache")
-				htmlFilesServer.ServeHTTP(w, r)
-			}))
-			// Serve embedded webapp
+			var filesystem fs.FS
+			if conf.C.Bool("server.embedded") {
+				filesystem = embed.PublicHTMLFS()
+			} else {
+				filesystem = os.DirFS(conf.C.String("server.html_dir"))
+			}
+			htmlFilesServer := http.FileServer(http.FS(filesystem))
 			router.Mount("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				// See if the file exists
-				file, err := htmlFilesFS.Open(strings.TrimLeft(r.URL.Path, "/"))
-				if err != nil {
-					// If the file is not found, serve the root index.html file
-					r.URL.Path = "/"
-				} else {
-					file.Close()
-				}
 				w.Header().Set("Vary", "Accept-Encoding")
 				w.Header().Set("Cache-Control", "no-cache")
 				htmlFilesServer.ServeHTTP(w, r)

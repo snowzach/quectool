@@ -22,13 +22,17 @@ const (
 )
 
 func (s ATStatus) MarshalJSON() ([]byte, error) {
+	return []byte(`"` + s.String() + `"`), nil
+}
+
+func (s ATStatus) String() string {
 	switch s {
 	case ATStatusOK:
-		return []byte(`"OK"`), nil
+		return "OK"
 	case ATStatusError:
-		return []byte(`"ERROR"`), nil
+		return "ERROR"
 	default:
-		return []byte(`"UNKNOWN"`), nil
+		return "UNKNOWN"
 	}
 }
 

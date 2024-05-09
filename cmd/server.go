@@ -44,6 +44,18 @@ var (
 			// Version endpoint
 			router.Get("/version", version.GetVersion())
 
+			// ipt, err := iptables.NewIPTables()
+			// if err != nil {
+			// 	log.Fatalf("could not setup iptables: %v", err)
+			// }
+			// if err := ipt.SetTTLValue(0); err != nil {
+			// 	log.Fatalf("could not setup ttl: %v", err)
+			// }
+
+			// if err := ipt.AllowTCPPorts([]string{"ens18", "ens19"}, ""); err != nil {
+			// 	log.Fatalf("could not setup tcp ports: %v", err)
+			// }
+
 			atserver, err := atserver.NewATServer(conf.C.String("modem.port"), conf.C.Duration("modem.timeout"))
 			if err != nil {
 				log.Fatalf("could not create AT server: %v", err)

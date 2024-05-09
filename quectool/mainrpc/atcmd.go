@@ -15,19 +15,29 @@ func (s *Server) ATCmd() http.HandlerFunc {
 		ctx := r.Context()
 
 		query := r.URL.Query()
-		cmd := query.Get("cmd")
+		cmd := query.Get("atcmd")
 		if cmd == "" || !strings.HasPrefix(cmd, "AT") {
-			render.ErrInvalidRequest(w, errors.New("invalid cmd"))
+			render.ErrInvalidRequest(w, errors.New("invalid atcmd"))
 			return
 		}
 
-		result, err := s.atserver.SendCMD(ctx, cmd)
+		response, err := s.atserver.SendCMD(ctx, cmd)
 		if err != nil {
 			render.ErrInvalidRequest(w, err)
 			return
 		}
 
-		render.JSON(w, http.StatusOK, result)
+		if query.Get("format") == "raw" {
+			for _, line := range response.Response {
+				w.Write([]byte(line))
+				w.Write([]byte("\r\n"))
+			}
+			w.Write([]byte(response.Status.String()))
+			w.Write([]byte("\r\n"))
+			return
+		}
+
+		render.JSON(w, http.StatusOK, response)
 
 	}
 

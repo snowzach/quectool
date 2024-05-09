@@ -27,3 +27,13 @@ armv7:
 .PHONY: windows
 windows:
 	CGO_ENABLED=0 GOOS=windows go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/${EXECUTABLE}-windows.exe
+
+.PHONY: atcmd-armv7
+atcmd-armv7:
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/atcmd-armv7 cmd/atcmd/atcmd.go
+
+.PHONY: atcmd-windows
+atcmd-windows:
+	CGO_ENABLED=0 GOOS=windows go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/atcmd-windows.exe cmd/atcmd/atcmd.go
+
+

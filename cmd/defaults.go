@@ -39,7 +39,7 @@ func defaults() map[string]interface{} {
 		// Server Auth
 		"server.auth.realm":    "",
 		"server.auth.username": "admin",
-		"server.auth.password": "password",
+		"server.auth.password": "$2a$10$kcXHpyjXgG9qyUGemyEbnuupMwCQgOF.pKXjJ6L3i1F9v9T.Tnn/.", // password = password
 		"server.auth.htpasswd": "",
 
 		"modem.port":    "/dev/smd11",

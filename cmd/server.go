@@ -2,15 +2,19 @@ package cmd
 
 import (
 	"crypto/subtle"
+	"crypto/tls"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	cli "github.com/spf13/cobra"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/snowzach/golib/conf"
 	"github.com/snowzach/golib/httpserver"
@@ -95,7 +99,19 @@ var (
 
 			// Start the listener and service connections.
 			go func() {
-				if err = s.ListenAndServe(); err != nil {
+				// Override the default listener to ensure we only listen on IPv4
+				listener, err := net.Listen("tcp4", s.Addr)
+				if err != nil {
+					log.Fatalf("could not listen on %s: %w", s.Addr, err)
+				}
+
+				// Enable TLS?
+				if conf.C.Bool("server.tls") {
+					// Wrap the listener in a TLS Listener
+					listener = tls.NewListener(listener, s.TLSConfig)
+				}
+
+				if err := s.Serve(listener); err != nil {
 					log.Errorf("Server error: %v", err)
 					signal.Stop.Stop()
 				}
@@ -180,12 +196,20 @@ func BasicAuth(realm string, creds map[string]string) func(next http.Handler) ht
 			}
 
 			credPass, credUserOk := creds[user]
-			if !credUserOk || subtle.ConstantTimeCompare([]byte(pass), []byte(credPass)) != 1 {
-				basicAuthFailed(w, realm)
-				return
-			}
 
-			next.ServeHTTP(w, r)
+			if credUserOk {
+				if strings.HasPrefix(credPass, "$2") {
+					// bcrypt hash
+					if err := bcrypt.CompareHashAndPassword([]byte(credPass), []byte(pass)); err == nil {
+						next.ServeHTTP(w, r)
+						return
+					}
+				} else if subtle.ConstantTimeCompare([]byte(pass), []byte(credPass)) == 1 {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			basicAuthFailed(w, realm)
 		})
 	}
 }

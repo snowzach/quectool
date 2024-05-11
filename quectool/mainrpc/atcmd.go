@@ -28,12 +28,13 @@ func (s *Server) ATCmd() http.HandlerFunc {
 		}
 
 		if query.Get("format") == "raw" {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(response.Command + "\r\n"))
 			for _, line := range response.Response {
-				w.Write([]byte(line))
-				w.Write([]byte("\r\n"))
+				_, _ = w.Write([]byte(line + "\r\n"))
 			}
-			w.Write([]byte(response.Status.String()))
-			w.Write([]byte("\r\n"))
+			_, _ = w.Write([]byte(response.Status.String() + "\r\n"))
 			return
 		}
 

@@ -18,7 +18,7 @@ type Server struct {
 }
 
 // Setup will setup the API listener
-func Setup(router chi.Router, atserver atserver.ATServer) error {
+func Setup(router chi.Router, atserver atserver.ATServer, realm string, creds map[string]string) error {
 
 	s := &Server{
 		logger:   log.Logger.With("context", "mainrpc"),

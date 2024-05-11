@@ -452,7 +452,7 @@
                 return res.json();
               })
               .then((data) => {
-                this.atCommandResponse = data.response.join("\n")+"\n"+data.status;
+                this.atCommandResponse = (data.response ? data.response.join("\n")+"\n" : "")+data.status;
                 this.isLoading = false;
                 this.isClean = false;
               })

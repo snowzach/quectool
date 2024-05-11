@@ -999,8 +999,8 @@
           },
 
           requestPing() {
-            return fetch("/cgi-bin/get_ping")
-              .then((response) => response.text())
+            return fetch("/api/probe/ping?target=1.1.1.1")
+              .then((response) => response.json())
               .then((data) => {
                 return data;
               })
@@ -1048,9 +1048,7 @@
 
             this.requestPing()
               .then((data) => {
-                const response = data.trim();
-                // Trim any leading/trailing spaces
-                if (response === "OK") {
+                if (data.success) {
                   this.internetConnection = "Connected";
                 } else {
                   this.internetConnection = "Disconnected";

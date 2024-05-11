@@ -14,7 +14,7 @@ func defaults() map[string]interface{} {
 		"pidfile": "",
 
 		// Server Configuration
-		"server.host":     "",
+		"server.host":     "0.0.0.0",
 		"server.port":     "8080",
 		"server.tls":      false,
 		"server.devcert":  false,
@@ -36,6 +36,11 @@ func defaults() map[string]interface{} {
 		// Embedded Server or local filesystem for html
 		"server.embedded": true,
 		"server.html_dir": "embed/public_html",
+		// Server Auth
+		"server.auth.realm":    "",
+		"server.auth.username": "admin",
+		"server.auth.password": "password",
+		"server.auth.htpasswd": "",
 
 		"modem.port":    "/dev/smd11",
 		"modem.timeout": "5s",

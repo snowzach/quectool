@@ -241,13 +241,13 @@
 
             this.isLoading = true;
             fetch(
-              "/cgi-bin/get_atcommand?" +
+              "/api/atcmd?" +
                 new URLSearchParams({
                   atcmd: this.atcmd,
                 })
             )
               .then((res) => {
-                return res.text();
+                return res.json();
               })
               .then((data) => {
                 this.atCommandResponse = data;
@@ -263,13 +263,13 @@
               'AT+CGMI;+CGMM;+QGMR;+CIMI;+ICCID;+CGSN;+QMAP="LANIP";+QMAP="WWAN"';
             this.isLoading = true;
             fetch(
-              "/cgi-bin/get_atcommand?" +
+              "/api/atcmd?" +
                 new URLSearchParams({
                   atcmd: this.atcmd,
                 })
             )
               .then((res) => {
-                return res.text();
+                return res.json();
               })
               .then((data) => {
                 this.atCommandResponse = data;
@@ -282,19 +282,17 @@
           },
 
           parseFetchedData() {
-            const lines = this.atCommandResponse.split("\n");
+            console.log("AT Command Response: ", this.atCommandResponse);
 
-            console.log("AT Command Response: ", lines);
-
-            this.manufacturer = lines[1].trim();
-            this.modelName = lines[3].trim();
-            this.firmwareVersion = lines[5].trim();
-            this.imsi = lines[7].trim();
-            this.iccid = lines[9].trim().replace("+ICCID: ", "");
-            this.imei = lines[11].trim();
-            this.lanIp = lines[13].trim().split(",")[3];
-            this.wwanIpv4 = lines[15].trim().split(",")[4].replace(/"/g, "");
-            this.wwanIpv6 = lines[16].trim().split(",")[4].replace(/"/g, "");
+            this.manufacturer = this.atCommandResponse.response[0];
+            this.modelName = this.atCommandResponse.response[1];
+            this.firmwareVersion = this.atCommandResponse.response[2];
+            this.imsi = this.atCommandResponse.response[3];
+            this.iccid = this.findRegexpValue(this.atCommandResponse.response, /^\+ICCID: (.*)/)
+            this.imei =this.atCommandResponse.response[5];
+            this.lanIp = this.findRegexpValue(this.atCommandResponse.response, /^\+QMAP: "LANIP",(.*)/)
+            this.wwanIpv4 = this.findRegexpValue(this.atCommandResponse.response, /^\+QMAP: "WWAN",1,1,"IPV4","([^"]+)"/)
+            this.wwanIpv6 = this.findRegexpValue(this.atCommandResponse.response, /^\+QMAP: "WWAN",1,1,"IPV6","([^"]+)"/)
             this.simpleAdminVersion = "SimpleAdminRev-Alpha-0.5";
             this.isLoading = false;
           },
@@ -351,6 +349,15 @@
           init() {
             this.fetchATCommand();
           },
+
+          findRegexpValue(array, regexp, index = 1, notFound = "?") {
+            for (i in array) {
+              const matches = regexp.exec(array[i]);
+              if(matches) return matches[index];
+            }
+            return notFound;
+          },
+
         };
       }
     </script>

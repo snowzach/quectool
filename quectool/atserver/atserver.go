@@ -36,6 +36,7 @@ func (s ATStatus) String() string {
 }
 
 type ATResponse struct {
+	Command  string   `json:"command"`
 	Status   ATStatus `json:"status"`
 	Response []string `json:"response"`
 }
@@ -126,13 +127,15 @@ func (ats *atServer) SendCMD(ctx context.Context, cmd string) (*ATResponse, erro
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 
-	ret := &ATResponse{
-		Status: ATStatusUnknown,
-	}
+	var (
+		ret = &ATResponse{
+			Command: cmd,
+			Status:  ATStatusUnknown,
+		}
+		header, trailer int
+	)
 
-	var header, trailer int
-
-	// It may or may not have our command prefix depending on how it's connected, if it does, remove it.
+	// If it has the command in the output, mark it for removal
 	if bytes.HasPrefix(response, []byte(cmd+"\r")) {
 		header = len(cmd) + 1
 	}

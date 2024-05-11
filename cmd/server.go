@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"io/fs"
 	"net/http"
@@ -41,6 +42,13 @@ var (
 				log.Fatalf("router config error: %v", err)
 			}
 
+			// Simple creds
+			realm := conf.C.String("server.auth.realm")
+			creds := map[string]string{
+				conf.C.String("server.auth.username"): conf.C.String("server.auth.password"),
+			}
+			router.Use(BasicAuth(realm, creds))
+
 			// Version endpoint
 			router.Get("/version", version.GetVersion())
 
@@ -62,7 +70,7 @@ var (
 			}
 
 			// MainRPC
-			if err = mainrpc.Setup(router, atserver); err != nil {
+			if err = mainrpc.Setup(router, atserver, realm, creds); err != nil {
 				log.Fatalf("Could not setup mainrpc: %v", err)
 			}
 
@@ -159,4 +167,30 @@ func newServer(handler http.Handler) (*httpserver.Server, error) {
 
 	return s, nil
 
+}
+
+// BasicAuth implements a simple middleware handler for adding basic http auth to a route.
+func BasicAuth(realm string, creds map[string]string) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			user, pass, ok := r.BasicAuth()
+			if !ok {
+				basicAuthFailed(w, realm)
+				return
+			}
+
+			credPass, credUserOk := creds[user]
+			if !credUserOk || subtle.ConstantTimeCompare([]byte(pass), []byte(credPass)) != 1 {
+				basicAuthFailed(w, realm)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+func basicAuthFailed(w http.ResponseWriter, realm string) {
+	w.Header().Add("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, realm))
+	w.WriteHeader(http.StatusUnauthorized)
 }

@@ -1,0 +1,13 @@
+[Unit]
+Description=Quectool
+After=ql-netd.service
+
+[Service]
+ExecStart=/usrdata/quectool server
+ExecStartPost=/bin/sleep 2s
+Restart=always
+RestartSec=1s
+Environment="SERVER_AUTH_REALM=Quectool"
+
+[Install]
+WantedBy=multi-user.target

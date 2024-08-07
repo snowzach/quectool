@@ -1,65 +1,100 @@
-function parseCurrentSettings(data) {
-    console.log(data);
+function parseCurrentSettings(rawdata) {
+  const data = rawdata;
 
-    // Remove QUIMSLOT and only take 1 or 2
-    this.sim = findRegexpValue(data.response, /^\+QUIMSLOT: (\d+)/);
-    this.apn = findRegexpValue(data.response, /^\+CGCONTRDP: [\d,]+\"([^"]+)\"/);
-    this.cellLock4GStatus = findRegexpValue(data.response, /^\+QNWLOCK: \"common\/4g\",(\d+)/);
-    this.cellLock5GStatus = findRegexpValue(data.response, /^\+QNWLOCK: \"common\/5g\",(\d+)/);
-    this.prefNetwork = findRegexpValue(data.response, /^\+QNWPREFCFG: \"mode_pref\",(.+)/);
-    this.nrModeControlStatus = findRegexpValue(data.response, /^\+QNWPREFCFG: \"nr5g_disable_mode\",(\d+)/);
+  const lines = data.split("\n");
+  console.log(lines);
 
+  // Remove QUIMSLOT and only take 1 or 2
+  this.sim = lines
+    .find(
+      (line) => line.includes("QUIMSLOT: 1") || line.includes("QUIMSLOT: 2")
+    )
+    .split(":")[1]
+    // remove spaces
+    .replace(/\s/g, "");
+  // .replace(/\"/g, "");
 
-// 6: '+QCAINFO: "PCC",124350,3,"NR5G BAND 71",869'
-// 7: '+QCAINFO: "SCC",520110,12,"NR5G BAND 41",1,290,0,-,-'
-// 8: '+QCAINFO: "SCC",502110,6,"NR5G BAND 41",1,290,0,-,-'
-
-    let bands = [];
-
-    const bandRegex = /^\+QCAINFO: (.*)/;
-    for (i in data.response) {
-      const matches = bandRegex.exec(data.response[i]);
-      if(matches) {
-        bands.push(matches[1].split(",")[3].replace(/\"/g, " "));
-      }
-    }
-
-    if (this.cellLock4GStatus == 1 && this.cellLock5GStatus == 1) {
-      this.cellLockStatus = "Locked to 4G and 5G";
-    } else if (this.cellLock4GStatus == 1) {
-      this.cellLockStatus = "Locked to 4G";
-    }
-    else if (this.cellLock5GStatus == 1) {
-      this.cellLockStatus = "Locked to 5G";
-    }
-    else {
-      this.cellLockStatus = "Not Locked";
-    }
-
-    if (this.nrModeControlStatus == 0) {
-      this.nrModeControlStatus = "Not Disabled";
-    }
-    else if (this.nrModeControlStatus == 1) {
-      this.nrModeControlStatus = "SA Disabled";
-    }
-    else {
-      this.nrModeControlStatus = "NSA Disabled";
-    }
-
-    return {
-      sim: sim,
-      apn: apn,
-      cellLockStatus: cellLockStatus,
-      prefNetwork: prefNetwork,
-      nrModeControl: nrModeControlStatus,
-      bands: bands
-    };
+  try {
+    this.apn = lines
+      .find((line) => line.includes("+CGCONTRDP: 1"))
+      .split(",")[2]
+      .replace(/\"/g, "");
+  } catch (error) {
+    this.apn = "Failed fetching APN";
   }
 
-  function findRegexpValue(array, regexp, index = 1, notFound = "?") {
-    for (i in array) {
-      const matches = regexp.exec(array[i]);
-      if(matches) return matches[index];
+  this.cellLock4GStatus = lines
+    .find((line) => line.includes('+QNWLOCK: "common/4g"'))
+    .split(",")[1]
+    .replace(/\"/g, "");
+
+  this.cellLock5GStatus = lines
+    .find((line) => line.includes('+QNWLOCK: "common/5g"'))
+    .split(",")[1]
+    .replace(/\"/g, "");
+
+  this.prefNetwork = lines
+    .find((line) => line.includes('+QNWPREFCFG: "mode_pref"'))
+    .split(",")[1]
+    .replace(/\"/g, "");
+
+  this.nrModeControl = lines
+    .find((line) => line.includes('+QNWPREFCFG: "nr5g_disable_mode"'))
+    .split(",")[1]
+    .replace(/\"/g, "");
+
+  this.apnIP = lines
+    .find((line) => line.includes("+CGDCONT: 1"))
+    .split(",")[1]
+    .replace(/\"/g, "");
+
+  try {
+    const PCCbands = lines
+      .find((line) => line.includes('+QCAINFO: "PCC"'))
+      .split(",")[3]
+      .replace(/\"/g, "");
+    
+    // Loop over all QCAINFO: "SCC" lines and get the bands
+    try {
+      const SCCbands = lines
+        .filter((line) => line.includes('+QCAINFO: "SCC"'))
+        .map((line) => line.split(",")[3].replace(/\"/g, ""))
+        .join(", ");
+      this.bands = `${PCCbands}, ${SCCbands}`;
+    } catch (error) {
+      this.bands = PCCbands;
     }
-    return notFound;
+    
+  } catch (error) {
+    this.bands = "Failed fetching bands";
   }
+
+  if (this.cellLock4GStatus == 1 && this.cellLock5GStatus == 1) {
+    this.cellLockStatus = "Locked to 4G and 5G";
+  } else if (this.cellLock4GStatus == 1) {
+    this.cellLockStatus = "Locked to 4G";
+  } else if (this.cellLock5GStatus == 1) {
+    this.cellLockStatus = "Locked to 5G";
+  } else {
+    this.cellLockStatus = "Not Locked";
+  }
+
+  if (this.nrModeControl == 0) {
+    this.nrModeControlName = "Not Disabled";
+  } else if (this.nrModeControl == 1) {
+    this.nrModeControlName = "SA Disabled";
+  } else {
+    this.nrModeControlName = "NSA Disabled";
+  }
+
+  return {
+    sim: sim,
+    apn: apn,
+    apnIP: apnIP,
+    cellLockStatus: cellLockStatus,
+    prefNetwork: prefNetwork,
+    nrModeControl: nrModeControl,
+    nrModeControlName: nrModeControlName,
+    bands: bands,
+  };
+}

@@ -25,12 +25,11 @@ func (s *Server) ProbePing() http.HandlerFunc {
 		result, err := prober.ProbePing(ctx, target, 3*time.Second)
 		if err != nil {
 			render.ErrInvalidRequest(w, err)
+			return
 		}
 
 		render.JSON(w, http.StatusOK, result)
-
 	}
-
 }
 
 func (s *Server) ProbeHTTP() http.HandlerFunc {
@@ -49,6 +48,7 @@ func (s *Server) ProbeHTTP() http.HandlerFunc {
 		result, err := prober.ProbeHTTP(ctx, target, 3*time.Second)
 		if err != nil {
 			render.ErrInvalidRequest(w, err)
+			return
 		}
 
 		render.JSON(w, http.StatusOK, result)

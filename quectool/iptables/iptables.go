@@ -93,7 +93,15 @@ func (i *IPTables) SetTTLValue(value int) error {
 // AllowTCPPorts will allow the specified TCP ports on the specified interfaces and drop all other ports.
 // If ports is an empty string, all rules will be removed.
 // Port should be a comma separated list of ports or a range of ports. ex "22,80,443,10000:10100"
-func (i *IPTables) AllowTCPPorts(interfaces []string, ports string) error {
+func (i *IPTables) AllowTCPPorts(interfaces []string, portsInts []int) error {
+
+	ports := ""
+	for _, port := range portsInts {
+		if ports != "" {
+			ports += ","
+		}
+		ports += cast.ToString(port)
+	}
 
 	list, err := i.ipv4t.List("filter", "INPUT")
 	if err != nil {

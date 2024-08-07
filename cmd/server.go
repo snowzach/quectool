@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 
@@ -24,6 +26,7 @@ import (
 	"github.com/snowzach/golib/version"
 	"github.com/snowzach/quectool/embed"
 	"github.com/snowzach/quectool/quectool/atserver"
+	"github.com/snowzach/quectool/quectool/iptables"
 	"github.com/snowzach/quectool/quectool/mainrpc"
 )
 
@@ -56,17 +59,24 @@ var (
 			// Version endpoint
 			router.Get("/version", version.GetVersion())
 
-			// ipt, err := iptables.NewIPTables()
-			// if err != nil {
-			// 	log.Fatalf("could not setup iptables: %v", err)
-			// }
-			// if err := ipt.SetTTLValue(0); err != nil {
-			// 	log.Fatalf("could not setup ttl: %v", err)
-			// }
+			ipt, err := iptables.NewIPTables()
+			if err != nil {
+				log.Fatalf("could not setup iptables: %v", err)
+			}
 
-			// if err := ipt.AllowTCPPorts([]string{"ens18", "ens19"}, ""); err != nil {
-			// 	log.Fatalf("could not setup tcp ports: %v", err)
-			// }
+			// Set TTL
+			if ttl := conf.C.Int("firewall.mangle.ttl"); ttl > 0 {
+				if err := ipt.SetTTLValue(ttl); err != nil {
+					log.Fatalf("could not setup ttl: %v", err)
+				}
+			}
+
+			// Set up firewall
+			if conf.C.Bool("firewall.filter.enabled") {
+				if err := ipt.AllowTCPPorts(conf.C.Strings("firewall.filter.interfaces"), conf.C.Ints("firewall.filter.ports")); err != nil {
+					log.Fatalf("could not setup tcp ports: %v", err)
+				}
+			}
 
 			atserver, err := atserver.NewATServer(conf.C.String("modem.port"), conf.C.Duration("modem.timeout"))
 			if err != nil {
@@ -90,6 +100,16 @@ var (
 				w.Header().Set("Cache-Control", "no-cache")
 				htmlFilesServer.ServeHTTP(w, r)
 			}))
+
+			if conf.C.Bool("server.ttyd.enabled") {
+				path := conf.C.String("server.ttyd.path")
+				target, _ := url.Parse(conf.C.String("server.ttyd.address"))
+				router.Mount(path, http.StripPrefix(path, &httputil.ReverseProxy{
+					Director: func(r *http.Request) {
+						r.URL = target
+					},
+				}))
+			}
 
 			// Create a server
 			s, err := newServer(router)

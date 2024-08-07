@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/snowzach/golib/httpserver/render"
 )
@@ -21,7 +22,19 @@ func (s *Server) ATCmd() http.HandlerFunc {
 			return
 		}
 
-		response, err := s.atserver.SendCMD(ctx, cmd)
+		var (
+			timeout time.Duration
+			err     error
+		)
+		if timeoutString := query.Get("timeout"); timeoutString != "" {
+			timeout, err = time.ParseDuration(timeoutString)
+			if err != nil {
+				render.ErrInvalidRequest(w, err)
+				return
+			}
+		}
+
+		response, err := s.atserver.SendCMD(ctx, cmd, timeout)
 		if err != nil {
 			render.ErrInvalidRequest(w, err)
 			return

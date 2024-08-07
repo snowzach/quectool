@@ -42,7 +42,7 @@ type ATResponse struct {
 }
 
 type ATServer interface {
-	SendCMD(ctx context.Context, cmd string) (*ATResponse, error)
+	SendCMD(ctx context.Context, cmd string, timeout time.Duration) (*ATResponse, error)
 	Close() error
 }
 
@@ -74,7 +74,10 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 
 	go func() {
 		buffer := make([]byte, 8192)
-		var pos int
+		var (
+			pos               int
+			emptyMessageCount int
+		)
 
 		for {
 			n, err := ats.port.Read(buffer[pos:])
@@ -86,8 +89,39 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 
 			log.Debug("Got port data", slog.String("data", string(buffer[:pos])))
 
+			// If the port keeps streaming empty data, it needs reset
+			if pos == 0 {
+				emptyMessageCount++
+				if emptyMessageCount > 20 {
+					// Reset the port
+					ats.mu.Lock()
+					if err := ats.port.Close(); err != nil {
+						log.Error("Unable to close port", "error", err)
+					}
+					// Wait for modem to come around
+					for retries := 10; retries > 0; retries-- {
+						ats.port, err = NewPort(portName)
+						if err != nil {
+							log.Info("Port not ready. Sleeping.", "error", err)
+							time.Sleep(5 * time.Second)
+						} else {
+							break
+						}
+					}
+					if ats.port == nil {
+						log.Fatal("Unable to reopen port after error")
+					} else {
+						log.Info("Port reopened")
+					}
+					ats.mu.Unlock()
+					emptyMessageCount = 0
+				}
+			} else {
+				emptyMessageCount = 0
+			}
+
 			// Read until we get an OK or ERROR
-			if bytes.Contains(buffer[:pos], []byte("\r\nOK\r\n")) || bytes.Contains(buffer[:pos], []byte("ERROR\r\n")) {
+			if bytes.Contains(buffer[:pos], []byte("\r\nOK\r\n")) || bytes.Contains(buffer[:pos], []byte("ERROR\r\n")) || bytes.Contains(buffer[:pos], []byte("ERROR:")) {
 				ret := make([]byte, pos)
 				copy(ret, buffer[:pos])
 				select {
@@ -105,7 +139,7 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 
 }
 
-func (ats *atServer) SendCMD(ctx context.Context, cmd string) (*ATResponse, error) {
+func (ats *atServer) SendCMD(ctx context.Context, cmd string, timeout time.Duration) (*ATResponse, error) {
 
 	ats.mu.Lock()
 	defer ats.mu.Unlock()
@@ -117,13 +151,17 @@ func (ats *atServer) SendCMD(ctx context.Context, cmd string) (*ATResponse, erro
 		return nil, fmt.Errorf("unable to send command %d: %v", n, err)
 	}
 
+	if timeout == 0 {
+		timeout = ats.timeout
+	}
+
 	// Wait for response/cancel/timeout
 	var response []byte
 	select {
 	case response = <-ats.response:
 	case <-ctx.Done():
 		return nil, context.Canceled
-	case <-time.After(ats.timeout):
+	case <-time.After(timeout):
 		return nil, fmt.Errorf("timeout waiting for response")
 	}
 

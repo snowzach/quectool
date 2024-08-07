@@ -14,6 +14,9 @@
     <link rel="stylesheet" href="css/styles.css" />
     <link rel="stylesheet" href="css/bootstrap.min.css" />
 
+    <!-- Logo -->
+    <link rel="simpleadmin-logo" href="favicon.ico" />
+
     <!--  Import BootStrap Javascript -->
     <script src="js/bootstrap.bundle.min.js"></script>
     <script src="js/alpinejs.min.js" defer></script>
@@ -51,10 +54,16 @@
                   >
                 </li>
                 <li class="nav-item">
+                  <a class="nav-link" href="/scanner.html">Simple Scan</a>
+                </li>
+                <li class="nav-item">
                   <a class="nav-link" href="/settings.html">Simple Settings</a>
                 </li>
                 <li class="nav-item">
                   <a class="nav-link" href="/sms.html">SMS</a>
+                </li>
+                <li class="nav-item">
+                  <a class="nav-link" href="/console">Console</a>
                 </li>
                 <li class="nav-item">
                   <a class="nav-link" href="deviceinfo.html"
@@ -91,10 +100,10 @@
                 </div>
               </div>
               <div class="card-body">
-                <h5 class="card-subtitle" x-show="isLoading">
+                <h5 class="card-subtitle" x-show="isGettingBands === true">
                   Fetching supported bands...
                 </h5>
-                <form id="checkboxForm" x-show="isLoading === false">
+                <form id="checkboxForm" x-show="isGettingBands === false">
                   <!-- Checkboxes will be populated here -->
                 </form>
               </div>
@@ -123,6 +132,18 @@
                       Reset
                     </button>
                   </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      value=""
+                      id="providerBands"
+                      onchange="saveCheckboxState()"
+                    />
+                    <label class="form-check-label" for="providerBands">
+                      Show Provider Supported Bands
+                    </label>
+                  </div>
                 </div>
               </div>
               <div class="card-footer">
@@ -150,6 +171,28 @@
                         x-bind:placeholder="apn === '-' ? 'Fetching...' : apn"
                       />
                     </div>
+
+                    <div class="mb-4">
+                      <label for="ipForAPN" class="form-label"
+                        >Choose APN PDP Type</label
+                      >
+                      <select
+                        class="form-select"
+                        id="ipAPN"
+                        x-model="newApnIP"
+                        aria-label="ipForAPN"
+                      >
+                        <option
+                          selected
+                          x-text="apnIP === '-' ? 'Fetching...' : 'Current: ' + apnIP"
+                        ></option>
+                        <option value="1">IPv4 Only</option>
+                        <option value="2">IPv6 Only</option>
+                        <option value="3">IPv4v6</option>
+                        <option value="4">P2P Protocol</option>
+                      </select>
+                    </div>
+
                     <div class="mb-4 input-group grid gap-3">
                       <label for="SIM1" class="form-label"> Change SIM</label>
                       <div class="form-check form-check-inline">
@@ -187,14 +230,14 @@
 
                   <div class="col">
                     <div class="mb-4">
-                      <label for="nrModeControl" class="form-label"
+                      <label for="prefNetworkNew" class="form-label"
                         >Select Preferred Network</label
                       >
                       <select
                         class="form-select"
-                        id="prefNetworkMode"
-                        x-model="prefNetworkMode"
-                        aria-label="prefNetworkMode"
+                        id="prefNetworkNew"
+                        x-model="prefNetworkNew"
+                        aria-label="prefNetworkNew"
                       >
                         <option
                           selected
@@ -207,18 +250,18 @@
                       </select>
                     </div>
                     <div class="mb-4">
-                      <label for="prefNetwork" class="form-label"
+                      <label for="nrModeControlNew" class="form-label"
                         >NR5G Mode Control</label
                       >
                       <select
                         class="form-select"
-                        id="nrModeControl"
-                        x-model="nrModeControl"
-                        aria-label="nrModeControl"
+                        id="nrModeControlNew"
+                        x-model="nrModeControlNew"
+                        aria-label="nrModeControlNew"
                       >
                         <option
                           selected
-                          x-text="nrModeControl === '-' ? 'Fetching...' : 'Current: ' + nrModeControl"
+                          x-text="nrModeControl === '-' ? 'Fetching...' : 'Current: ' + nrModeControlName"
                         ></option>
                         <option value="0">Enable All</option>
                         <option value="2">Disable NR5G-NSA</option>
@@ -372,6 +415,10 @@
                   </button>
                 </div>
               </div>
+              <div class="card-footer">
+                Cell Locking only works for the primary cell and is not
+                persistent across reboots.
+              </div>
             </div>
           </div>
         </div>
@@ -401,118 +448,6 @@
     <script src="js/populate-checkbox.js"></script>
     <script src="js/parse-settings.js"></script>
     <script>
-      function requestATInfo(atcmd) {
-        return fetch(
-          "/api/atcmd?" +
-            new URLSearchParams({
-              atcmd: atcmd,
-            })
-        )
-          .then((response) => response.json())
-          .catch((error) => {
-            console.error("Error:", error);
-            // Throw the error again to ensure it's propagated
-            throw error;
-          });
-      }
-
-      function getSupportedBands() {
-        const atcmd = 'AT+QNWPREFCFG="policy_band"';
-        return requestATInfo(atcmd).then((data) => {
-          let { lte_bands, nsa_bands, sa_bands } = parseSupportedBands(data);
-
-          return {
-            lte_bands: lte_bands,
-            nsa_bands: nsa_bands,
-            sa_bands: sa_bands,
-          };
-        });
-      }
-
-      function parseSupportedBands(data) {
-        const regex = /"([^"]+)",([0-9:]+)/g;
-
-        // Object to store the results
-        const bands = {};
-
-        for (i in data.response) {
-          const match = regex.exec(data.response[i]);
-          if (match !== null) {
-            const bandType = match[1];
-            const numbers = match[2].split(":").map(Number);
-            bands[bandType] = numbers;
-          }
-        }
-
-        // Separate the bands for each network mode
-        const lte_bands = bands.gw_band.join(":");
-        const nsa_bands = bands.nsa_nr5g_band.join(":");
-        const sa_bands = bands.nr5g_band.join(":");
-
-        return {
-          lte_bands,
-          nsa_bands,
-          sa_bands,
-        };
-      }
-
-      function parseLockedBands(data) {
-        const regex = /"([^"]+)",([0-9:]+)/g;
-
-        // Object to store the results
-        const bands = {};
-
-        for(i in data.response) {
-          const match = regex.exec(data.response[i]);
-          
-          if (match !== null) {
-            const bandType = match[1];
-            const numbers = match[2].split(":").map(Number);
-            bands[bandType] = numbers;
-          }
-        }
-
-        console.log(bands)
-
-        // Seperate the bands for each network mode
-        const locked_lte_bands = bands.lte_band !== undefined ? bands.lte_band.join(":") : "";
-        const locked_nsa_bands = bands.nsa_nr5g_band !== undefined ? bands.nsa_nr5g_band.join(":"): "";
-        const locked_sa_bands = bands.nr5g_band !== undefined ? bands.nr5g_band.join(":") : "";
-
-        return {
-          locked_lte_bands,
-          locked_nsa_bands,
-          locked_sa_bands,
-        };
-      }
-
-      function getLockedBands() {
-        const atcmd =
-          'AT+QNWPREFCFG="lte_band";+QNWPREFCFG= "nsa_nr5g_band";+QNWPREFCFG= "nr5g_band"';
-
-        return requestATInfo(atcmd).then((data) => {
-          const lockedBandsData = parseLockedBands(data);
-          return lockedBandsData;
-        });
-      }
-
-      function getCurrentSettings() {
-        const atcmd =
-          'AT+QUIMSLOT?;+CGCONTRDP=1;+QNWLOCK="common/4g";+QNWLOCK="common/5g";+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QCAINFO';
-
-        return requestATInfo(atcmd).then((data) => {
-          const settings = parseCurrentSettings(data);
-          return {
-            sim: settings.sim,
-            apn: settings.apn,
-            cellLockStatus: settings.cellLockStatus,
-            prefNetwork: settings.prefNetwork,
-            nrModeControl: settings.nrModeControl,
-            bands: settings.bands,
-          };
-        });
-      }
-
       function cellLocking() {
         return {
           isLoading: false,
@@ -542,9 +477,12 @@
           scs: null,
           band: null,
           apn: "-",
+          apnIP: "-",
+          newApnIP: null,
           newApn: null,
+          prefNetworkNew: null,
           prefNetwork: "-",
-          prefNetworkMode: null,
+          nrModeControlNew: null,
           nrModeControl: "-",
           cellNum: null,
           lte_bands: null,
@@ -559,43 +497,118 @@
           newSim: null,
           cellLockStatus: "Unknown",
           bands: "Fetching Bands...",
+          isGettingBands: false,
+          rawdata: null,
+
+          getSupportedBands() {
+            // Load the checkbox state from localStorage
+            const isChecked =
+              localStorage.getItem("providerBandsChecked") === "true";
+            const providerBands = document.getElementById("providerBands");
+            providerBands.checked = isChecked;
+
+            // If the checkbox is checked, then show only the provider bands
+            if (providerBands.checked) {
+              const atcmd = 'AT+QNWPREFCFG="ue_capability_band"';
+              this.sendATcommand(atcmd)
+                .then((rawdata) => {
+                  this.rawdata = rawdata;
+                  this.parseSupportedBands(rawdata);
+                })
+                .then(() => {
+                  this.getLockedBands();
+                });
+            } else {
+              const atcmd = 'AT+QNWPREFCFG="policy_band"';
+              this.sendATcommand(atcmd)
+                .then((rawdata) => {
+                  this.rawdata = rawdata;
+                  this.parseSupportedBands(rawdata);
+                })
+                .then(() => {
+                  this.getLockedBands();
+                });
+            }
+          },
+
+          parseSupportedBands(rawdata) {
+            const data = rawdata;
+            const regex = /"([^"]+)",([0-9:]+)/g;
+
+            // Object to store the results
+            const bands = {};
+
+            let match;
+            while ((match = regex.exec(data)) !== null) {
+              const bandType = match[1];
+              const numbers = match[2].split(":").map(Number);
+              // console.log(bandType);
+              // console.log(numbers);
+              bands[bandType] = numbers;
+            }
+
+            // Seperate the bands for each network mode
+            this.lte_bands = bands.lte_band.join(":");
+            this.nsa_bands = bands.nsa_nr5g_band.join(":");
+            this.sa_bands = bands.nr5g_band.join(":");
+          },
+
+          getLockedBands() {
+            const atcmd =
+              'AT+QNWPREFCFG="lte_band";+QNWPREFCFG= "nsa_nr5g_band";+QNWPREFCFG= "nr5g_band"';
+
+            this.sendATcommand(atcmd)
+              .then((rawdata) => {
+                this.rawdata = rawdata;
+                this.parseLockedBands(rawdata);
+              })
+              .then(() => {
+                // Call current settings
+                this.getCurrentSettings();
+              });
+          },
+
+          parseLockedBands(rawdata) {
+            const data = rawdata;
+            const regex = /"([^"]+)",([0-9:]+)/g;
+
+            // Object to store the results
+            const bands = {};
+
+            let match;
+            while ((match = regex.exec(data)) !== null) {
+              const bandType = match[1];
+              const numbers = match[2].split(":").map(Number);
+              bands[bandType] = numbers;
+            }
+
+            console.log(bands);
+
+            // Seperate the bands for each network mode
+            this.locked_lte_bands = bands.lte_band.join(":");
+            this.locked_nsa_bands = bands.nsa_nr5g_band.join(":");
+            this.locked_sa_bands = bands.nr5g_band.join(":");
+
+            populateCheckboxes(
+              this.lte_bands,
+              this.nsa_bands,
+              this.sa_bands,
+              this.locked_lte_bands,
+              this.locked_nsa_bands,
+              this.locked_sa_bands,
+              this
+            );
+          },
+
           init() {
             // Function to populate checkboxes
             const showPopulateCheckboxes = () => {
-              this.isLoading = true;
-              Promise.all([getSupportedBands(), getLockedBands()])
-                .then(([supportedBandsData, lockedBandsData]) => {
-                  
-                  console.log(supportedBandsData, lockedBandsData)
+              this.isGettingBands = true;
+              this.getSupportedBands();
+              this.isGettingBands = false;
 
-                  this.lte_bands = supportedBandsData.lte_bands;
-                  this.nsa_bands = supportedBandsData.nsa_bands;
-                  this.sa_bands = supportedBandsData.sa_bands;
-                  this.locked_lte_bands = lockedBandsData.locked_lte_bands;
-                  this.locked_nsa_bands = lockedBandsData.locked_nsa_bands;
-                  this.locked_sa_bands = lockedBandsData.locked_sa_bands;
-
-                  // Once both promises are resolved, call populateCheckboxes
-                  populateCheckboxes(
-                    this.lte_bands,
-                    this.nsa_bands,
-                    this.sa_bands,
-                    this.locked_lte_bands,
-                    this.locked_nsa_bands,
-                    this.locked_sa_bands,
-                    this
-                  );
-
-                  // Set isLoading to false after populating checkboxes
-                  this.isLoading = false;
-
-                  // Add event listeners to checkboxes after populating them
-                  addCheckboxListeners(this);
-                })
-                .catch((error) => {
-                  console.error("Error:", error);
-                  // Handle errors if any
-                });
+              // Add event listeners to checkboxes after populating them
+              addCheckboxListeners(this);
             };
 
             // Function to track checkbox changes
@@ -618,18 +631,6 @@
               this.updatedLockedBands = newCheckedValues;
             };
 
-            // Function to get the current settings
-            const getCurrentSettingsData = () => {
-              getCurrentSettings().then((settings) => {
-                this.sim = settings.sim;
-                this.apn = settings.apn;
-                this.cellLockStatus = settings.cellLockStatus;
-                this.prefNetwork = settings.prefNetwork;
-                this.nrModeControl = settings.nrModeControl;
-                this.bands = settings.bands;
-              });
-            };
-
             // Function to add event listener to network mode dropdown
             const addNetworkModeListener = () => {
               document
@@ -642,7 +643,22 @@
             // Execute necessary functions on initialization
             showPopulateCheckboxes();
             addNetworkModeListener();
-            getCurrentSettingsData();
+          },
+          getCurrentSettings() {
+            const atcmd =
+              'AT+QUIMSLOT?;+CGCONTRDP=1;+QNWLOCK="common/4g";+QNWLOCK="common/5g";+QNWPREFCFG="mode_pref";+QNWPREFCFG="nr5g_disable_mode";+QCAINFO;+CGDCONT?';
+
+            this.sendATcommand(atcmd).then((rawdata) => {
+              const settings = parseCurrentSettings(rawdata);
+              this.sim = settings.sim;
+              this.apn = settings.apn;
+              this.apnIP = settings.apnIP;
+              this.cellLockStatus = settings.cellLockStatus;
+              this.prefNetwork = settings.prefNetwork;
+              this.nrModeControl = settings.nrModeControl;
+              this.nrModeControlName = settings.nrModeControlName;
+              this.bands = settings.bands;
+            });
           },
           lockSelectedBands() {
             // Get the updated this.currentNetworkMode = selectedMode; and this.updatedLockedBands = newCheckedValues;
@@ -672,9 +688,9 @@
                 alert("Invalid network mode selected");
               }
 
-              // Do a 5 second countdown
+              // Do a 2 second countdown
               this.showModal = true;
-              this.countdown = 5;
+              this.countdown = 2;
               const interval = setInterval(() => {
                 this.countdown--;
                 if (this.countdown === 0) {
@@ -713,8 +729,8 @@
           saveChanges() {
             const newApn = this.newApn;
             const newSim = this.newSim;
-            const prefNetworkMode = this.prefNetworkMode;
-            const nrModeControl = this.nrModeControl;
+            const prefNetworkNew = this.prefNetworkNew;
+            const nrModeControlNew = this.nrModeControlNew;
 
             let atAPN, atSIM, ATNetwork, ATNRMode, atcmd;
             atAPN = "";
@@ -723,30 +739,59 @@
             ATNRMode = "";
 
             if (newApn !== null) {
-              atAPN = `+CGDCONT=1,"IP","${newApn}";`;
+              if (this.newApnIP === "1") {
+                atAPN = `+CGDCONT=1,"IPV4","${newApn}";`;
+              } else if (this.newApnIP === "2") {
+                atAPN = `+CGDCONT=1,"IPV6","${newApn}";`;
+              } else if (this.newApnIP === "3") {
+                atAPN = `+CGDCONT=1,"IPV4V6","${newApn}";`;
+              } else if (this.newApnIP === "4") {
+                atAPN = `+CGDCONT=1,"PPP","${newApn}";`;
+              } else {
+                console.log("No changes made");
+                atAPN = `+CGDCONT=1,"IPV4V6","${newApn}";`;
+              }
             }
 
             if (newSim !== null) {
               atSIM = `+QUIMSLOT=${newSim};`;
             }
 
-            if (prefNetworkMode !== null) {
-              ATNetwork = `+QNWPREFCFG="mode_pref",${prefNetworkMode};`;
+            if (prefNetworkNew !== null) {
+              ATNetwork = `+QNWPREFCFG="mode_pref",${prefNetworkNew};`;
             }
 
-            if (nrModeControl !== this.nrModeControl) {
-              ATNRMode = `+QNWPREFCFG="nr5g_disable_mode",${nrModeControl}`;
+            if (nrModeControlNew !== null) {
+              ATNRMode = `+QNWPREFCFG="nr5g_disable_mode",${nrModeControlNew}`;
             }
 
             atcmd = `AT+${atAPN}${atSIM}${ATNetwork}${ATNRMode}`;
+
             // If there is double + (++), remove 1 + from the command
             atcmd = atcmd.replace("++", "+");
             if (atcmd !== "AT+") {
               this.showModal = true;
               console.log(atcmd);
 
-              this.sendATcommand(atcmd);
+              // If atcmd has QUIMSLOT,  do a reboot instead
+              if (atcmd.includes("QUIMSLOT")) {
+                atcmd = atcmd + "+CFUN=1,1";
+                this.sendATcommand(atcmd);
+                this.countdown = 45;
 
+                const interval = setInterval(() => {
+                  this.countdown--;
+                  if (this.countdown === 0) {
+                    clearInterval(interval);
+                    this.showModal = false;
+                    this.init();
+                  }
+                }, 1000);
+
+                return;
+              }
+
+              this.sendATcommand(atcmd);
               // Do a 15 second countdown
               this.countdown = 15;
 
@@ -795,10 +840,9 @@
             }
 
             // Construct the AT command using the valid pairs
-            let atcmd = `+QNWLOCK="common/4g",${cellNum},${validPairs
+            let atcmd = `AT+QNWLOCK="common/4g",${cellNum},${validPairs
               .map((pair) => `${pair.earfcn},${pair.pci}`)
               .join(",")}`;
-            atcmd = "AT+CFUN=0;" + atcmd + ";+CFUN=1";
 
             // Mock data
             this.showModal = true;
@@ -832,8 +876,7 @@
             }
 
             // Construct the AT command using the valid pairs
-            let atcmd = `+QNWLOCK="common/5g",${earfcn},${pci},${scs},${band}`;
-            atcmd = "AT+CFUN=0;" + atcmd + ";+CFUN=1";
+            let atcmd = `AT+QNWLOCK="common/5g",${earfcn},${pci},${scs},${band}`;
 
             // Mock data
             this.showModal = true;
@@ -852,7 +895,7 @@
           },
           cellLockDisableLTE() {
             // Send the atcmd command to reset the locked bands
-            const atcmd = 'AT+CFUN=0;+QNWLOCK="common/4g,0;+CFUN=1"';
+            const atcmd = 'AT+QNWLOCK="common/4g",0';
             this.showModal = true;
 
             this.sendATcommand(atcmd);
@@ -868,7 +911,7 @@
           },
           cellLockDisableNR() {
             // Send the atcmd command to reset the locked bands
-            const atcmd = 'AT+CFUN=0;+QNWLOCK="common/5g,0;+CFUN=1"';
+            const atcmd = 'AT+QNWLOCK="common/5g,0"';
 
             this.showModal = true;
 
@@ -890,9 +933,9 @@
                   atcmd: atcmd,
                 })
             )
-              .then((response) => response.text())
+              .then((response) => response.json())
               .then((data) => {
-                return data;
+                return (data.response == null ? "" : data.response.join("\n"));
               })
               .catch((error) => {
                 console.error("Error:", error);
@@ -932,7 +975,33 @@
               checkbox.checked = false;
             });
         });
+
+      // Function for setting the provider bands checkbox and fetching the bands
+      document
+        .getElementById("providerBands")
+        .addEventListener("change", function () {
+          cellLocking().getSupportedBands();
+        });
+
+      document.addEventListener("DOMContentLoaded", (event) => {
+        loadCheckboxState();
+      });
+
+      function saveCheckboxState() {
+        const providerBandsCheckbox = document.getElementById("providerBands");
+        localStorage.setItem(
+          "providerBandsChecked",
+          providerBandsCheckbox.checked
+        );
+      }
+
+      function loadCheckboxState() {
+        const providerBandsCheckbox = document.getElementById("providerBands");
+        const isChecked =
+          localStorage.getItem("providerBandsChecked") === "true";
+        providerBandsCheckbox.checked = isChecked;
+      }
     </script>
-    <script src="/js/dark-mode.js"></script>
+    <script src="js/dark-mode.js"></script>
   </body>
 </html>

@@ -31,6 +31,7 @@ func Setup(router chi.Router, atserver atserver.ATServer, realm string, creds ma
 		r.Get("/atcmd", s.ATCmd())
 		r.Get("/probe/ping", s.ProbePing())
 		r.Get("/probe/http", s.ProbeHTTP())
+		r.Get("/sysinfo", s.SysInfo())
 	})
 
 	return nil

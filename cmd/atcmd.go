@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf/providers/posflag"
 	"github.com/snowzach/golib/conf"
@@ -42,7 +43,7 @@ var (
 
 			var response *atserver.ATResponse
 			for retries := 0; retries < 3; retries++ {
-				response, err = ats.SendCMD(context.Background(), args[0])
+				response, err = ats.SendCMD(context.Background(), args[0], 10*time.Second)
 				if err != nil {
 					if strings.Contains(err.Error(), "timeout") {
 						continue

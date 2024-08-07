@@ -45,7 +45,7 @@ func main() {
 			return
 		}
 
-		response, err := ats.SendCMD(ctx, cmd)
+		response, err := ats.SendCMD(ctx, cmd, 10*time.Second)
 		if err != nil {
 			render.ErrInvalidRequest(w, err)
 			return

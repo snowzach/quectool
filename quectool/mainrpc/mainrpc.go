@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/gorilla/websocket"
 
 	"github.com/snowzach/golib/log"
 
@@ -15,15 +16,26 @@ type Server struct {
 	logger   *slog.Logger
 	router   chi.Router
 	atserver atserver.ATServer
+
+	upgrader websocket.Upgrader
+
+	terminalCommand string
+	terminalArgs    []string
 }
 
 // Setup will setup the API listener
-func Setup(router chi.Router, atserver atserver.ATServer, realm string, creds map[string]string) error {
+func Setup(router chi.Router, atserver atserver.ATServer, terminalCommand string, terminalArgs []string) error {
 
 	s := &Server{
 		logger:   log.Logger.With("context", "mainrpc"),
 		router:   router,
 		atserver: atserver,
+		upgrader: websocket.Upgrader{
+			ReadBufferSize:  1024,
+			WriteBufferSize: 1024,
+		},
+		terminalCommand: terminalCommand,
+		terminalArgs:    terminalArgs,
 	}
 
 	// Base Functions
@@ -32,6 +44,7 @@ func Setup(router chi.Router, atserver atserver.ATServer, realm string, creds ma
 		r.Get("/probe/ping", s.ProbePing())
 		r.Get("/probe/http", s.ProbeHTTP())
 		r.Get("/sysinfo", s.SysInfo())
+		r.Get("/terminal", s.Terminal())
 	})
 
 	return nil

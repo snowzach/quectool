@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io/fs"
+	"mime"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -84,9 +85,12 @@ var (
 			}
 
 			// MainRPC
-			if err = mainrpc.Setup(router, atserver, realm, creds); err != nil {
+			if err = mainrpc.Setup(router, atserver, conf.C.String("server.terminal.command"), conf.C.Strings("server.terminal.args")); err != nil {
 				log.Fatalf("Could not setup mainrpc: %v", err)
 			}
+
+			mime.AddExtensionType(".css", "text/css")
+			mime.AddExtensionType(".js", "application/javascript")
 
 			var filesystem fs.FS
 			if conf.C.Bool("server.embedded") {
@@ -109,6 +113,10 @@ var (
 						r.URL = target
 					},
 				}))
+			}
+
+			if conf.C.Bool("server.pprof") {
+				router.Mount("/debug", middleware.Profiler())
 			}
 
 			// Create a server

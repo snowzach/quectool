@@ -242,7 +242,7 @@
                         x-model="newRefreshRate"
                         class="form-control"
                         type="number"
-                        min="3"
+                        min="5"
                         max="60"
                         x-bind:placeholder="refreshRate + 's'"
                       />
@@ -643,7 +643,7 @@
           uptime: "Unknown",
           lastUpdate: new Date().toLocaleString(),
           newRefreshRate: null,
-          refreshRate: 3,
+          refreshRate: 5,
           nrDownload: "0",
           nrUpload: "0",
           nonNrDownload: "0",
@@ -1624,8 +1624,8 @@
 
           updateRefreshRate() {
             // Check if the refresh rate is less than 3
-            if (this.newRefreshRate < 3) {
-              this.newRefreshRate = 3;
+            if (this.newRefreshRate < 5) {
+              this.newRefreshRate = 5;
             }
 
             // Clear the old interval

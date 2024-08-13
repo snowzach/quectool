@@ -13,12 +13,16 @@ func Get(ctx context.Context) (*SysInfo, error) {
 	}
 
 	return &SysInfo{
-		Uptime:    sysinfo.Uptime,
-		Loads:     sysinfo.Loads,
-		TotalRam:  sysinfo.Totalram,
-		FreeRam:   sysinfo.Freeram,
-		SharedRam: sysinfo.Sharedram,
-		BufferRam: sysinfo.Bufferram,
-		Procs:     sysinfo.Procs,
+		Uptime: int(sysinfo.Uptime),
+		Loads: [3]uint{
+			uint(sysinfo.Loads[0]),
+			uint(sysinfo.Loads[1]),
+			uint(sysinfo.Loads[2]),
+		},
+		TotalRam:  uint(sysinfo.Totalram),
+		FreeRam:   uint(sysinfo.Freeram),
+		SharedRam: uint(sysinfo.Sharedram),
+		BufferRam: uint(sysinfo.Bufferram),
+		Procs:     uint(sysinfo.Procs),
 	}, nil
 }

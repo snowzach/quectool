@@ -36,9 +36,17 @@ atcmd-armv7:
 atcmd-windows:
 	CGO_ENABLED=0 GOOS=windows go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/atcmd-windows.exe cmd/atcmd/atcmd.go
 
+.PHONY: terminal-build
+terminal-build:
+	cd terminal-ui && rm -Rf dist && npm run build
+	mkdir -p embed/public_html/console
+	cp -R terminal-ui/dist/* embed/public_html/console
 
-
-
+.PHONY: push-armv7
+push-armv7: terminal-build armv7
+	adb shell mkdir -p /usrdata/quectool
+	adb shell systemctl stop quectool || true
+	adb push build/quectool-armv7 /usrdata/quectool/quectool
 
 .PHONY: assets
 assets: bindata/static/js/gotty.js.map \

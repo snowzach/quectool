@@ -41,9 +41,14 @@ func defaults() map[string]interface{} {
 		"server.auth.username": "admin",
 		"server.auth.password": "$2a$10$kcXHpyjXgG9qyUGemyEbnuupMwCQgOF.pKXjJ6L3i1F9v9T.Tnn/.", // password = password
 
+		"server.pprof": true,
+
 		"server.ttyd.enabled": false,
 		"server.ttyd.path":    "/tty",
 		"server.ttyd.address": "http://127.0.0.1:8000",
+
+		"server.terminal.command": "/bin/bash",
+		"server.terminal.args":    []string{"-i", "-l"},
 
 		"firewall.filter.enabled":    false,
 		"firewall.filter.interfaces": []string{"bridge", "eth0", "tailscale0"},

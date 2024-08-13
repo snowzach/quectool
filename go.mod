@@ -7,6 +7,7 @@ require (
 	github.com/coreos/go-iptables v0.7.0
 	github.com/go-chi/chi/v5 v5.0.10
 	github.com/go-chi/cors v1.2.1
+	github.com/gorilla/websocket v1.5.3
 	github.com/knadh/koanf v1.5.0
 	github.com/prometheus-community/pro-bing v0.4.0
 	github.com/snowzach/golib v1.0.4

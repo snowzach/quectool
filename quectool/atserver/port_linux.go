@@ -6,6 +6,7 @@ package atserver
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"golang.org/x/sys/unix"
 )
@@ -24,20 +25,22 @@ func NewPort(portName string) (*Port, error) {
 
 	// Get the attributes
 	var attr unix.Termios
-	if err := unix.IoctlSetTermios(fd, unix.TCGETS, &attr); err != nil {
-		return nil, fmt.Errorf("unable to get port attributes %s: %w", portName, err)
-	}
+	err = unix.IoctlSetTermios(fd, unix.TCGETS, &attr)
+	if err == nil {
+		// Set to raw mode
+		attr.Iflag &^= unix.BRKINT | unix.ICRNL | unix.INPCK | unix.ISTRIP | unix.IXON
+		attr.Oflag &^= unix.OPOST
+		attr.Cflag &^= unix.CSIZE | unix.PARENB
+		attr.Cflag |= unix.CS8
+		attr.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
+		attr.Cc[unix.VMIN] = 1
+		attr.Cc[unix.VTIME] = 0
+		if err := unix.IoctlSetTermios(fd, unix.TCSETS, &attr); err != nil {
+			return nil, fmt.Errorf("unable to set port to raw mode: %w", err)
+		}
 
-	// Set to raw mode
-	attr.Iflag &^= unix.BRKINT | unix.ICRNL | unix.INPCK | unix.ISTRIP | unix.IXON
-	attr.Oflag &^= unix.OPOST
-	attr.Cflag &^= unix.CSIZE | unix.PARENB
-	attr.Cflag |= unix.CS8
-	attr.Lflag &^= unix.ECHO | unix.ICANON | unix.IEXTEN | unix.ISIG
-	attr.Cc[unix.VMIN] = 1
-	attr.Cc[unix.VTIME] = 0
-	if err := unix.IoctlSetTermios(fd, unix.TCSETS, &attr); err != nil {
-		return nil, fmt.Errorf("unable to set port to raw mode: %w", err)
+	} else if err != nil && !strings.Contains(err.Error(), "inappropriate ioctl") {
+		return nil, fmt.Errorf("unable to get port attributes %s: %w", portName, err)
 	}
 
 	// Set non-blocking

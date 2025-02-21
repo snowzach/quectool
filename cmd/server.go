@@ -256,6 +256,7 @@ func keepMemoryUsageLowIfNeeded() {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 	if memStats.Sys < 1<<30 { // 1 GB
+		log.Info("Sceduled garbage collection every 5 seconds")
 		go func() {
 			ticker := time.NewTicker(5 * time.Second)
 			defer ticker.Stop()

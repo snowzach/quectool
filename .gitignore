@@ -1,7 +1,4 @@
 .vscode
-bindata.go
-server.crt
-server.key
 local.sh
 build
 local

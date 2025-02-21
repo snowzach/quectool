@@ -10,6 +10,7 @@ import (
 )
 
 func NewPort(portName string) (*serial.Port, error) {
+
 	port, err := serial.Open(portName,
 		serial.WithBaudrate(115200),
 		serial.WithDataBits(8),

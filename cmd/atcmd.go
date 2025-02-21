@@ -53,6 +53,10 @@ var (
 				break
 			}
 
+			if response == nil {
+				log.Fatalf("could not send command or did not get response")
+			}
+
 			for _, line := range response.Response {
 				fmt.Println(line)
 			}

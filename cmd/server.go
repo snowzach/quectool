@@ -11,7 +11,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -42,7 +45,9 @@ var (
 		Long:  `Start Server`,
 		Run: func(cmd *cli.Command, args []string) { // Initialize the databse
 
-			var err error
+			// Will run a Garbage Collection and return as much memory to the system as possible
+			// every 5 seconds if the memory in the system is below 1GB.
+			keepMemoryUsageLowIfNeeded()
 
 			// Create the router and server config
 			router, err := newRouter()
@@ -245,4 +250,19 @@ func BasicAuth(realm string, creds map[string]string) func(next http.Handler) ht
 func basicAuthFailed(w http.ResponseWriter, realm string) {
 	w.Header().Add("WWW-Authenticate", fmt.Sprintf(`Basic realm="%s"`, realm))
 	w.WriteHeader(http.StatusUnauthorized)
+}
+
+func keepMemoryUsageLowIfNeeded() {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+	if memStats.Sys < 1<<30 { // 1 GB
+		go func() {
+			ticker := time.NewTicker(5 * time.Second)
+			defer ticker.Stop()
+			for range ticker.C {
+				debug.FreeOSMemory()
+			}
+		}()
+	}
+
 }

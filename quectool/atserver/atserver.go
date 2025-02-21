@@ -18,6 +18,8 @@ const (
 	ATStatusUnknown ATStatus = iota
 	ATStatusOK
 	ATStatusError
+
+	defaultBufferSize = 8912
 )
 
 func (s ATStatus) MarshalJSON() ([]byte, error) {
@@ -73,51 +75,40 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 	}
 
 	go func() {
-		buffer := make([]byte, 8192)
-		var (
-			pos               int
-			emptyMessageCount int
-		)
+		buffer := make([]byte, defaultBufferSize)
+		var pos int
 
 		for {
 			n, err := ats.port.Read(buffer[pos:])
-			if err != nil {
+			if err == io.EOF {
+				log.Info("Port EOF. Attempting to Re-Open", "error", err)
+				ats.mu.Lock()
+				ats.port.Close()
+				// Probably rebooting, reopen the port
+				for retries := 10; retries > 0; retries-- {
+					ats.port, err = NewPort(portName)
+					if err != nil {
+						log.Info("Port not ready. Sleeping.", "error", err)
+						time.Sleep(5 * time.Second)
+					} else {
+						break
+					}
+				}
+				if ats.port == nil {
+					log.Fatal("Unable to reopen port after EOF")
+				} else {
+					log.Info("Port reopened")
+				}
+				ats.mu.Unlock()
+			} else if err != nil {
 				log.Error("unable to read response", "error", err)
 				continue
 			}
+			log.Debug("Got port data", slog.String("data", string(buffer[pos:pos+n])))
 			pos += n
-
-			log.Debug("Got port data", slog.String("data", string(buffer[:pos])))
-
-			// If the port keeps streaming empty data, it needs reset
-			if pos == 0 {
-				emptyMessageCount++
-				if emptyMessageCount > 20 {
-					// Reset the port
-					ats.mu.Lock()
-					if err := ats.port.Close(); err != nil {
-						log.Error("Unable to close port", "error", err)
-					}
-					// Wait for modem to come around
-					for retries := 10; retries > 0; retries-- {
-						ats.port, err = NewPort(portName)
-						if err != nil {
-							log.Info("Port not ready. Sleeping.", "error", err)
-							time.Sleep(5 * time.Second)
-						} else {
-							break
-						}
-					}
-					if ats.port == nil {
-						log.Fatal("Unable to reopen port after error")
-					} else {
-						log.Info("Port reopened")
-					}
-					ats.mu.Unlock()
-					emptyMessageCount = 0
-				}
-			} else {
-				emptyMessageCount = 0
+			// Grow the buffer if we've filled it
+			if pos == len(buffer) {
+				buffer = append(buffer, make([]byte, 8192)...)
 			}
 
 			// Read until we get an OK or ERROR
@@ -129,6 +120,10 @@ func newATServer(portName string, timeout time.Duration) (*atServer, error) {
 					// Send response
 				case <-time.After(1 * time.Second):
 					// No one is listening
+				}
+				// Shrink and reset the buffer
+				if len(buffer) != defaultBufferSize {
+					buffer = make([]byte, defaultBufferSize)
 				}
 				pos = 0
 			}

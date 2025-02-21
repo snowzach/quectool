@@ -1,6 +1,6 @@
 module github.com/snowzach/quectool
 
-go 1.21
+go 1.24
 
 require (
 	github.com/albenik/go-serial/v2 v2.6.1
@@ -9,6 +9,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/knadh/koanf v1.5.0
+	github.com/pkg/term v1.1.0
 	github.com/prometheus-community/pro-bing v0.4.0
 	github.com/snowzach/golib v1.0.4
 	github.com/spf13/cast v1.5.1

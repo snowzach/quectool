@@ -43,11 +43,23 @@ func (s *Server) ATCmd() http.HandlerFunc {
 		if query.Get("format") == "raw" {
 			w.Header().Set("Content-Type", "text/plain")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(response.Command + "\r\n"))
+			// Build response into a single right-sized buffer so we issue
+			// one Write call and one allocation total.
+			status := response.Status.String()
+			size := len(response.Command) + 2 + len(status) + 2
 			for _, line := range response.Response {
-				_, _ = w.Write([]byte(line + "\r\n"))
+				size += len(line) + 2
 			}
-			_, _ = w.Write([]byte(response.Status.String() + "\r\n"))
+			buf := make([]byte, 0, size)
+			buf = append(buf, response.Command...)
+			buf = append(buf, '\r', '\n')
+			for _, line := range response.Response {
+				buf = append(buf, line...)
+				buf = append(buf, '\r', '\n')
+			}
+			buf = append(buf, status...)
+			buf = append(buf, '\r', '\n')
+			_, _ = w.Write(buf)
 			return
 		}
 

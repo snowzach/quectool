@@ -1,0 +1,12 @@
+[Unit]
+Description=QuecTool — Quectel modem control web UI
+After=ql-netd.service
+
+[Service]
+ExecStart=/usrdata/quectool/quectool server -c /usrdata/quectool/quectool.yaml
+WorkingDirectory=/usrdata/quectool
+Restart=always
+RestartSec=2s
+
+[Install]
+WantedBy=multi-user.target

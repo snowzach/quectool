@@ -3,9 +3,10 @@ package iptables
 import (
 	"fmt"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/coreos/go-iptables/iptables"
-	"github.com/spf13/cast"
 )
 
 var (
@@ -18,8 +19,6 @@ var (
 type IPTables struct {
 	ipv4t *iptables.IPTables
 	ipv6t *iptables.IPTables
-
-	ttlValue int
 }
 
 func NewIPTables() (*IPTables, error) {
@@ -49,7 +48,8 @@ func (i *IPTables) SetTTLValue(value int) error {
 	var ipv4exists bool
 	for _, rule := range list {
 		if matches := ipv4TTLRule.FindStringSubmatch(rule); matches != nil {
-			if value > 0 && !ipv4exists && cast.ToInt(matches[1]) == value {
+			n, _ := strconv.Atoi(matches[1])
+			if value > 0 && !ipv4exists && n == value {
 				ipv4exists = true
 			} else {
 				if err := i.ipv4t.Delete("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "TTL", "--ttl-set", matches[1]); err != nil {
@@ -59,7 +59,7 @@ func (i *IPTables) SetTTLValue(value int) error {
 		}
 	}
 	if value > 0 && !ipv4exists {
-		if err := i.ipv4t.Append("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "TTL", "--ttl-set", cast.ToString(value)); err != nil {
+		if err := i.ipv4t.Append("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "TTL", "--ttl-set", strconv.Itoa(value)); err != nil {
 			return fmt.Errorf("unable to append ipv4 mangle rule: %w", err)
 		}
 	}
@@ -72,7 +72,8 @@ func (i *IPTables) SetTTLValue(value int) error {
 	var ipv6exists bool
 	for _, rule := range list {
 		if matches := ipv6TTLRule.FindStringSubmatch(rule); matches != nil {
-			if value > 0 && !ipv6exists && cast.ToInt(matches[1]) == value {
+			n, _ := strconv.Atoi(matches[1])
+			if value > 0 && !ipv6exists && n == value {
 				ipv6exists = true
 			} else {
 				if err := i.ipv6t.Delete("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "HL", "--hl-set", matches[1]); err != nil {
@@ -82,7 +83,7 @@ func (i *IPTables) SetTTLValue(value int) error {
 		}
 	}
 	if value > 0 && !ipv6exists {
-		if err := i.ipv6t.Append("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "HL", "--hl-set", cast.ToString(value)); err != nil {
+		if err := i.ipv6t.Append("mangle", "POSTROUTING", "-o", "rmnet+", "-j", "HL", "--hl-set", strconv.Itoa(value)); err != nil {
 			return fmt.Errorf("unable to append ipv6 mangle rule: %w", err)
 		}
 	}
@@ -95,13 +96,14 @@ func (i *IPTables) SetTTLValue(value int) error {
 // Port should be a comma separated list of ports or a range of ports. ex "22,80,443,10000:10100"
 func (i *IPTables) AllowTCPPorts(interfaces []string, portsInts []int) error {
 
-	ports := ""
-	for _, port := range portsInts {
-		if ports != "" {
-			ports += ","
+	var b strings.Builder
+	for idx, port := range portsInts {
+		if idx > 0 {
+			b.WriteByte(',')
 		}
-		ports += cast.ToString(port)
+		b.WriteString(strconv.Itoa(port))
 	}
+	ports := b.String()
 
 	list, err := i.ipv4t.List("filter", "INPUT")
 	if err != nil {

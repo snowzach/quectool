@@ -1,0 +1,31 @@
+QuecTool release tarball
+========================
+
+Contents:
+  quectool          armv7 binary (UPX-compressed)
+  quectool.yaml     default configuration
+  quectool.service  systemd unit
+  install.sh        on-modem installer (idempotent, safe for upgrades)
+  uninstall.sh      on-modem uninstaller (--purge to wipe /usrdata/quectool)
+
+Quick install (with adb):
+  adb push <this-tarball> /tmp/quectool.tar.gz
+  adb shell "cd /tmp && rm -rf q && mkdir q && cd q \
+    && tar xzf ../quectool.tar.gz && sh install.sh"
+
+The binary serves HTTPS on port 443 by default. A self-signed cert
+is auto-generated on first boot at /usrdata/quectool/server.{crt,key}
+covering every UP interface IP. Browsers warn the first time per
+device — trust once, it sticks. To regenerate after a network
+reconfiguration: rm the cert files and restart.
+
+Or from a workstation in one shot, using deploy.sh from the repo:
+  ./deploy.sh                                   # latest GitHub release
+  ./deploy.sh v2.0.0                            # specific tag
+  ./deploy.sh ./quectool-v2.0.0-armv7.tar.gz    # local tarball
+
+After install, the UI is at  http://<modem-ip>:8080
+Default credentials:         admin / quectool
+Change password:             quectool passwd <new-password>  (paste hash into quectool.yaml)
+
+Repo: https://github.com/snowzach/quectool

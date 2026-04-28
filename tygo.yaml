@@ -1,0 +1,11 @@
+packages:
+  - path: "github.com/snowzach/quectool/quectool/modem"
+    output_path: "frontend/src/types/modem.ts"
+  - path: "github.com/snowzach/quectool/quectool/atserver"
+    output_path: "frontend/src/types/atserver.ts"
+    include_files:
+      - "atserver.go"
+  - path: "github.com/snowzach/quectool/quectool/prober"
+    output_path: "frontend/src/types/prober.ts"
+  - path: "github.com/snowzach/quectool/quectool/sysinfo"
+    output_path: "frontend/src/types/sysinfo.ts"

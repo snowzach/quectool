@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fixed height chain so flex-based pages (the xterm console in particular)
+ * can compute a real h-full down the tree. Use `min-height` ALSO so a tall
+ * page that overflows the viewport still paints to the bottom. */
+html, body, #root { height: 100%; }
+body { min-height: 100vh; }
+
+/* Gradient on html with background-attachment:fixed paints relative to the
+ * viewport — survives scroll without depending on element heights. */
+html {
+  background: linear-gradient(to bottom, #f8fafc, #e2e8f0) fixed;
+}

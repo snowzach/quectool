@@ -1,5 +1,4 @@
 //go:build linux
-// +build linux
 
 package atserver
 
@@ -23,6 +22,17 @@ func NewPort(portName string) (*Port, error) {
 		return nil, fmt.Errorf("unable to open port %s: %w", portName, err)
 	}
 
+	// Claim exclusive access. Without this, Linux happily lets two processes
+	// share the port — writes and reads interleave silently and identify()
+	// will time out mid-handshake with no useful error. With TIOCEXCL set,
+	// a subsequent opener (including a second copy of this binary) gets
+	// EBUSY immediately. If the call fails (some virtual ports), we keep
+	// going — exclusivity is a best-effort safety net.
+	if err := unix.IoctlSetInt(fd, unix.TIOCEXCL, 0); err != nil {
+		// Non-fatal: log via the error message later if it matters.
+		_ = err
+	}
+
 	// Get the attributes
 	var attr unix.Termios
 	err = unix.IoctlSetTermios(fd, unix.TCGETS, &attr)
@@ -39,7 +49,7 @@ func NewPort(portName string) (*Port, error) {
 			return nil, fmt.Errorf("unable to set port to raw mode: %w", err)
 		}
 
-	} else if err != nil && !strings.Contains(err.Error(), "inappropriate ioctl") {
+	} else if !strings.Contains(err.Error(), "inappropriate ioctl") {
 		return nil, fmt.Errorf("unable to get port attributes %s: %w", portName, err)
 	}
 

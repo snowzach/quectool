@@ -67,6 +67,14 @@ func main() {
 
 	log.Infof("Starting server on %s", os.Args[2])
 
-	http.ListenAndServe(os.Args[2], mux)
-
+	srv := &http.Server{
+		Addr:              os.Args[2],
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 << 10,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		log.Fatalf("server exited: %v", err)
+	}
 }

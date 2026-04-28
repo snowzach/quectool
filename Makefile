@@ -1,88 +1,76 @@
 EXECUTABLE := quectool
 GITVERSION := $(shell git describe --dirty --always --tags --long)
-GOPATH ?= ${HOME}/go
-PACKAGENAME := $(shell go list -m -f '{{.Path}}')
+LDFLAGS    := -X github.com/snowzach/golib/version.Executable=$(EXECUTABLE) \
+              -X github.com/snowzach/golib/version.GitVersion=$(GITVERSION)
 
 .PHONY: default
-default: ${EXECUTABLE}
-	
-.PHONY: ${EXECUTABLE}
-${EXECUTABLE}:
-	# Compiling...
+default: $(EXECUTABLE)
+
+# Host build for local development.
+.PHONY: $(EXECUTABLE)
+$(EXECUTABLE):
 	mkdir -p build
-	go build -ldflags "-X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/${EXECUTABLE}
+	go build -ldflags "$(LDFLAGS)" -o build/$(EXECUTABLE)
+
+# Cross-compile for the modem (Quectel RM5xx OpenLinux is 32-bit ARMv7).
+.PHONY: armv7
+armv7: frontend
+	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 \
+		go build -trimpath -ldflags "-w -s $(LDFLAGS)" -o build/$(EXECUTABLE)-armv7
+
+# Tagged release artifact: armv7 binary + dist/ files in a single tarball
+# with sha256. Same artifact CI publishes; usable locally with deploy.sh.
+.PHONY: release-tar
+release-tar: armv7
+	rm -rf build/pkg
+	mkdir -p build/pkg
+	cp build/$(EXECUTABLE)-armv7  build/pkg/quectool
+	cp dist/quectool.yaml         build/pkg/
+	cp dist/quectool.service      build/pkg/
+	cp dist/install.sh            build/pkg/
+	cp dist/uninstall.sh          build/pkg/
+	cp dist/README                build/pkg/
+	chmod +x build/pkg/install.sh build/pkg/uninstall.sh
+	tar -C build/pkg -czf build/$(EXECUTABLE)-$(GITVERSION)-armv7.tar.gz .
+	cd build && sha256sum $(EXECUTABLE)-$(GITVERSION)-armv7.tar.gz \
+		> $(EXECUTABLE)-$(GITVERSION)-armv7.tar.gz.sha256
+	@echo "==> build/$(EXECUTABLE)-$(GITVERSION)-armv7.tar.gz"
+
+# Frontend bundle, embedded into the binary at compile time.
+.PHONY: frontend
+frontend: types
+	cd frontend && [ -d node_modules ] || npm install
+	cd frontend && rm -rf dist && npm run build
+
+# Regenerate frontend/src/types/ from the Go structs.
+.PHONY: types
+types:
+	mkdir -p frontend/src/types
+	go run github.com/gzuidhof/tygo@latest generate
 
 .PHONY: test
-test: tools mocks
+test:
 	go test -cover ./...
 
-.PHONY: lint
-lint:
-	docker run --rm -v ${PWD}:/app -w /app golangci/golangci-lint:latest golangci-lint run -v --timeout 5m
+# Local development:
+#   make dev-backend   in one terminal (override MODEM_PORT if not /dev/ttyUSB3)
+#   make dev-frontend  in another (vite dev server, proxies /api → :8082)
+# Override the production defaults (HTTPS on :443, embedded SPA, /usrdata
+# paths) for local laptop dev: plain HTTP on :8080, frontend served from
+# the on-disk build, modem on the typical Quectel USB AT port.
+.PHONY: dev-backend
+dev-backend:
+	SERVER_EMBEDDED=false SERVER_TLS=false SERVER_PORT=8080 \
+		SERVER_SSH_HOST_KEY_FILE=./host_key \
+		SERVER_AUTH_CREDENTIALS_FILE=./credentials \
+		MODEM_PORT=/dev/ttyUSB3 \
+		go run main.go server
 
-.PHONY: armv7
-armv7:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/${EXECUTABLE}-armv7
+.PHONY: dev-frontend
+dev-frontend: types
+	cd frontend && [ -d node_modules ] || npm install
+	cd frontend && npm run dev
 
-.PHONY: windows
-windows:
-	CGO_ENABLED=0 GOOS=windows go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/${EXECUTABLE}-windows.exe
-
-.PHONY: atcmd-armv7
-atcmd-armv7:
-	CGO_ENABLED=0 GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/atcmd-armv7 cmd/atcmd/atcmd.go
-
-.PHONY: atcmd-windows
-atcmd-windows:
-	CGO_ENABLED=0 GOOS=windows go build -ldflags "-w -s -X github.com/snowzach/golib/version.Executable=${EXECUTABLE} -X github.com/snowzach/golib/version.GitVersion=${GITVERSION}" -o build/atcmd-windows.exe cmd/atcmd/atcmd.go
-
-.PHONY: terminal-build
-terminal-build:
-	cd terminal-ui && rm -Rf dist && npm run build
-	mkdir -p embed/public_html/console
-	cp -R terminal-ui/dist/* embed/public_html/console
-
-.PHONY: push-armv7
-push-armv7: terminal-build armv7
-	adb shell mkdir -p /usrdata/quectool
-	adb shell systemctl stop quectool || true
-	adb push build/quectool-armv7 /usrdata/quectool/quectool
-
-.PHONY: assets
-assets: bindata/static/js/gotty.js.map \
-	bindata/static/js/gotty.js \
-	bindata/static/index.html \
-	bindata/static/icon.svg \
-	bindata/static/favicon.ico \
-	bindata/static/css/index.css \
-	bindata/static/css/xterm.css \
-	bindata/static/css/xterm_customize.css \
-	bindata/static/manifest.json \
-	bindata/static/icon_192.png
-
-all: gotty
-
-bindata/static bindata/static/css bindata/static/js:
-	mkdir -p $@
-
-bindata/static/%: resources/% | bindata/static/css 
-	cp "$<" "$@"
-
-bindata/static/css/%.css: resources/%.css | bindata/static 
-	cp "$<" "$@"
-
-bindata/static/css/xterm.css: js/node_modules/xterm/css/xterm.css | bindata/static
-	cp "$<" "$@"
-
-js/node_modules/xterm/dist/xterm.css:
-	cd js && \
-	npm install
-
-bindata/static/js/gotty.js.map bindata/static/js/gotty.js: js/src/* | js/node_modules/webpack
-	cd js && \
-	npx webpack --mode=$(WEBPACK_MODE)
-
-js/node_modules/webpack:
-	cd js && \
-	npm install
-
+.PHONY: clean
+clean:
+	rm -rf build frontend/dist embed/public_html frontend/src/types

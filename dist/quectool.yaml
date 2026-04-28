@@ -1,0 +1,109 @@
+# QuecTool configuration.
+#
+# Loaded via `quectool server -c /usrdata/quectool/quectool.yaml` (the systemd
+# unit does this). Any value here can also be overridden by an environment
+# variable: dots become underscores and the name is uppercased
+# (e.g. server.port → SERVER_PORT).
+#
+# After editing: `systemctl restart quectool`.
+
+logger:
+  level: info        # debug | info | warn | error
+  encoding: console  # console | json | stackdriver
+  color: true
+  output: stderr
+
+# Optional pidfile path. Leave empty to disable.
+pidfile: ""
+
+server:
+  host: 0.0.0.0
+  port: "443"
+  # HTTPS by default. The binary auto-generates a self-signed cert
+  # at certfile / keyfile on first boot if they don't exist — SAN
+  # entries for every UP interface IP, 10-year validity. Browsers
+  # warn the first time per device; trust once and it sticks.
+  #
+  # To regenerate (e.g. after the modem moves to a new LAN):
+  #   rm /usrdata/quectool/server.{crt,key} && systemctl restart quectool
+  # …or run `quectool gencert --force` to do it without restarting.
+  #
+  # To use a real cert from your CA: drop it at certfile/keyfile.
+  # To run plain HTTP: set tls: false and pick a non-privileged port.
+  tls: true
+  devcert: false
+  certfile: /usrdata/quectool/server.crt
+  keyfile: /usrdata/quectool/server.key
+
+  log:
+    enabled: true
+    level: info
+    request_body: false
+    response_body: false
+    ignore_paths:
+      - /version
+
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: [HEAD, OPTIONS, GET, POST, PUT, DELETE, PATCH]
+    allowed_headers: ["*"]
+    allow_credentials: false
+    max_age: 300
+
+  # Embedded SPA: when true, the React UI is served from the binary.
+  # Flip to false during local dev with SERVER_HTML_DIR pointing at
+  # an on-disk frontend/dist.
+  embedded: true
+  html_dir: embed/public_html
+
+  # Web UI / SSH credentials.
+  #
+  # The username and password here are the BOOTSTRAP credentials.
+  # Once you change the password from the web UI (Settings → Change Password),
+  # the new bcrypt hash is written to credentials_file (below) and that file
+  # wins over this YAML on every subsequent restart. To reset a forgotten
+  # password: rm /usrdata/quectool/credentials && systemctl restart quectool.
+  #
+  # If you'd rather rotate the bootstrap password by hand, generate a hash
+  # with `quectool passwd <new-password>` and replace the value below.
+  auth:
+    username: admin
+    password: "$2a$10$7mmv.UY3blHzjamcvvQ1QO8zFv6/46VPHmUyyogoJv6g7E73J5Sym"
+    # Path the UI password-change flow writes to. Set to "" to disable
+    # the UI password change (the endpoint will return 409).
+    credentials_file: /usrdata/quectool/credentials
+
+  # Shell exposed to the in-browser console.
+  terminal:
+    command: /bin/bash
+    args: ["-i", "-l"]
+
+  # Embedded SSH server. Reuses the auth credentials above for password
+  # auth. Host key auto-generated on first run.
+  ssh:
+    enabled: true
+    address: 0.0.0.0:2222
+    host_key_file: /usrdata/quectool/host_key
+    authorized_keys: ""
+    shell: /bin/bash
+    shell_args: ["-i", "-l"]
+    idle_timeout: 30m
+
+# Host firewall integration. Disabled by default — only flip on if you
+# actually want quectool managing iptables rules on the modem host.
+firewall:
+  filter:
+    enabled: false
+    interfaces: [bridge, eth0, tailscale0]
+    ports: [22, 80, 443, 8080]
+  mangle:
+    ttl: 0
+
+modem:
+  # AT serial port. /dev/smd11 is the standard Quectel internal AT port
+  # on RM5xx OpenLinux. For local development against a USB-attached
+  # modem, override with MODEM_PORT=/dev/ttyUSB2 (or whichever ttyUSB
+  # the AT port enumerates as).
+  port: /dev/smd11
+  timeout: 5s

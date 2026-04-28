@@ -1,6 +1,16 @@
 .vscode
-local.sh
 build
 local
-embed/public_html/console
+embed/public_html/
+.worktrees
+.superpowers
+frontend/node_modules/
+frontend/dist/
+frontend/src/types/
+frontend/src/**/*.js
+frontend/src/**/*.d.ts
+frontend/*.tsbuildinfo
+host_key
+.local.sh
+./local-credentials
 

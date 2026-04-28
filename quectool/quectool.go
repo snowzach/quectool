@@ -7,5 +7,10 @@ import (
 type Duration time.Duration
 
 func (d Duration) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + time.Duration(d).String() + `"`), nil
+	s := time.Duration(d).String()
+	b := make([]byte, 0, len(s)+2)
+	b = append(b, '"')
+	b = append(b, s...)
+	b = append(b, '"')
+	return b, nil
 }

@@ -19,6 +19,20 @@ pidfile: ""
 server:
   host: 0.0.0.0
   port: "443"
+  # Source-IP allow-list. The HTTP server (and the embedded SSH server on
+  # server.ssh.address) listen on every interface, then reject any client
+  # whose source address isn't in this list — HTTP gets a 403, SSH gets
+  # the TCP socket closed before the handshake. The default covers:
+  #   192.168.224.0/22  Quectel LAN bridge (gateway .225.1, /22 to cover
+  #                     the full .224.x – .227.x DHCP range)
+  #   127.0.0.0/8 + ::1 loopback (curl on the modem itself)
+  # Cellular clients land on carrier-side addresses that won't match,
+  # so the modem's UI is not reachable from the internet even though
+  # the binary listens on 0.0.0.0. Set to [] to disable enforcement.
+  allow_cidrs:
+    - 192.168.224.0/22
+    - 127.0.0.0/8
+    - ::1/128
   # HTTPS by default. The binary auto-generates a self-signed cert
   # at certfile / keyfile on first boot if they don't exist — SAN
   # entries for every UP interface IP, 10-year validity. Browsers

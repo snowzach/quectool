@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -28,6 +29,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/snowzach/quectool/quectool/auth"
+	"github.com/snowzach/quectool/quectool/cidrallow"
 )
 
 type Config struct {
@@ -37,6 +39,10 @@ type Config struct {
 	Shell           string
 	ShellArgs       []string
 	Verifier        *auth.Verifier
+	// Allow gates accepted connections by source IP. Nil = allow everything
+	// (the matcher returned by cidrallow.New([]) does the same — that's the
+	// "no enforcement" mode).
+	Allow           *cidrallow.Matcher
 	IdleTimeout     time.Duration
 	MaxAuthTries    int
 }
@@ -85,6 +91,21 @@ func New(cfg *Config) (*Server, error) {
 		SubsystemHandlers: map[string]ssh.SubsystemHandler{
 			"sftp": sftpSubsystemHandler,
 		},
+	}
+
+	// Source-IP allow-list: drop the TCP conn before SSH handshake if the
+	// remote isn't in the allowed CIDRs. ConnCallback receives the raw
+	// net.Conn; returning nil tells gliderlabs/ssh to abort the handshake.
+	if cfg.Allow != nil {
+		s.srv.ConnCallback = func(_ ssh.Context, conn net.Conn) net.Conn {
+			ra := conn.RemoteAddr().String()
+			if !cfg.Allow.Allow(ra) {
+				log.Infof("ssh blocked connection from %s (not in server.allow_cidrs)", ra)
+				_ = conn.Close()
+				return nil
+			}
+			return conn
+		}
 	}
 
 	// Password auth via the shared verifier.

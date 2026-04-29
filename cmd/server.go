@@ -29,6 +29,7 @@ import (
 	"github.com/snowzach/quectool/embed"
 	"github.com/snowzach/quectool/quectool/atserver"
 	"github.com/snowzach/quectool/quectool/auth"
+	"github.com/snowzach/quectool/quectool/cidrallow"
 	"github.com/snowzach/quectool/quectool/credfile"
 	"github.com/snowzach/quectool/quectool/tlsgen"
 	"github.com/snowzach/quectool/quectool/iptables"
@@ -57,8 +58,18 @@ var (
 			// environment variables.
 			tuneRuntimeForLowMemory()
 
+			// Source-IP allow-list. The UI / SSH listen on every interface
+			// (server.host = 0.0.0.0) for simplicity, but this matcher gates
+			// every accepted connection — a request from outside the
+			// allowed CIDRs gets a 403 (HTTP) or a TCP close (SSH) without
+			// reaching auth, the router, or any business logic.
+			allowMatcher, err := cidrallow.New(conf.C.Strings("server.allow_cidrs"))
+			if err != nil {
+				log.Fatalf("server.allow_cidrs: %v", err)
+			}
+
 			// Create the router and server config
-			router, err := newRouter()
+			router, err := newRouter(allowMatcher)
 			if err != nil {
 				log.Fatalf("router config error: %v", err)
 			}
@@ -250,6 +261,7 @@ var (
 					ShellArgs:      conf.C.Strings("server.ssh.shell_args"),
 					IdleTimeout:    conf.C.Duration("server.ssh.idle_timeout"),
 					Verifier:       verifier,
+					Allow:          allowMatcher,
 				})
 				if err != nil {
 					log.Fatalf("could not create ssh server: %v", err)
@@ -276,12 +288,13 @@ var (
 	}
 )
 
-func newRouter() (chi.Router, error) {
+func newRouter(allow *cidrallow.Matcher) (chi.Router, error) {
 
 	router := chi.NewRouter()
 	router.Use(
 		middleware.Recoverer, // Recover from panics
 		middleware.RequestID, // Inject request-id
+		allow.Middleware,     // Source-IP allow-list (must come before logging/cors)
 	)
 
 	// Request logger

@@ -20,6 +20,19 @@ func defaults() map[string]any {
 		// files and restart, or run `quectool gencert --force`.
 		"server.host":     "0.0.0.0",
 		"server.port":     "443",
+		// Source IP allow-list (CIDRs). The HTTP server (and the embedded
+		// SSH server) listen on every interface, then reject any connection
+		// whose source address isn't in this list. The default covers the
+		// Quectel LAN bridge (192.168.224.0/22, factory standard — gateway
+		// at .225.1, /22 to cover the full DHCP range across .224.x – .227.x)
+		// plus loopback. The cellular interface hands clients carrier-side
+		// IPs that won't match, so the UI is not reachable from the
+		// internet. Empty list = allow all.
+		"server.allow_cidrs": []string{
+			"192.168.224.0/22",
+			"127.0.0.0/8",
+			"::1/128",
+		},
 		"server.tls":      true,
 		"server.devcert":  false,
 		"server.certfile": "/usrdata/quectool/server.crt",
